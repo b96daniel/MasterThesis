@@ -67,30 +67,13 @@ def prepare_data(title, descr, vocab_size=1000, max_len=100):
             x[i, :l] = s[:l]
             x[i, :l] += 1
 
-        return x, mask
+        return x, mask                      
 
     #returning modified title, descr and some kind of masks for them? 
     title, title_mask = create_mask(title)
     descr, descr_mask = create_mask(descr)                              
 
     return title, title_mask, descr, descr_mask                         #numpy arrays
-
-def load_weight(path):
-    model_path = '../NCE/models/' + path + '.json'
-    param_path = '../NCE/bestModels/' + path + '.hdf5'
-
-    custom = {'NCEContext': NCEContext, 'NCE': NCE, 'NCE_seq': NCE_seq}
-    fModel = open(model_path)
-    model = model_from_json(fModel.read(), custom_objects=custom)
-    model.load_weights(param_path)
-    for layer in model.layers:
-        weights = layer.get_weights()
-        if 'embedding' in layer.name:
-            return weights[0]
-
-def load_w2v_weight(path):
-    f = open('../NCE/bestModels/' + path, 'rb')
-    return cPickle.load(f)
 
 def to_features(list_seqs, emb_weight):
     vocab, dim = emb_weight.shape
@@ -104,31 +87,19 @@ def to_features(list_seqs, emb_weight):
         list_feats.append(feat)
     return list_feats
 
-def prepare_BoW(title, descr, vocab_size=1000):
-    feats = numpy.zeros((len(title), vocab_size)).astype('float32')
+def load_weight(path):
+    model_path = 'Deep-SE/NCE/models/' + path + '.json'
+    param_path = 'Deep-SE/NCE/bestModels/' + path + '.hdf5'
 
-    for seqs in [title, descr]:
-        for i, s in enumerate(seqs):
-            for word in s:
-                if word < vocab_size:
-                    feats[i, word] = 1
+    custom = {'NCEContext': NCEContext, 'NCE': NCE, 'NCE_seq': NCE_seq}
+    fModel = open(model_path)
+    model = model_from_json(fModel.read(), custom_objects=custom)
+    model.load_weights(param_path)
+    for layer in model.layers:
+        weights = layer.get_weights()
+        if 'embedding' in layer.name:
+            return weights[0]
 
-    return feats
-
-def load_lstm2v_features(path):
-    f = gzip.open(path, 'rb')
-    train, train_y, valid, valid_y, test, test_y = cPickle.load(f)
-
-    n_train = len(train) / 2
-    n_valid = len(valid) / 2
-    n_test  = len(test)  / 2
-    train_x = numpy.concatenate([train[:n_train], train[n_train:]], axis=-1)
-    valid_x = numpy.concatenate([valid[:n_valid], valid[n_valid:]], axis=-1)
-    test_x  = numpy.concatenate([test[:n_test], test[n_test:]], axis=-1)
-
-    return train_x, train_y, valid_x, valid_y, test_x, test_y
-
-def load_doc2vec_features(path):
-    f = gzip.open(path,'rb')
-    train_x, train_y, valid_x, valid_y, test_x, test_y = cPickle.load(f)
-    return train_x, train_y, valid_x, valid_y, test_x, test_y
+def load_w2v_weight(path):
+    f = open('Deep-SE/NCE/bestModels/' + path, 'rb')
+    return cPickle.load(f) 

@@ -37,12 +37,17 @@ else: dropout_inp = False
 if 'hid' in args['-reg']: dropout_hid = True
 else: dropout_hid = False
 
+#loading train, valid and test dataset from /data folder
+# t:title, d:description, y:label (story-point), types: list of lists of numbers
 train_t, train_d, train_y, valid_t, valid_d, valid_y, test_t, test_d, test_y = prepare_data.load(dataset)
+
+#modifying titles and desscriptions by limiting their vocab and length, and creating masks for them
+#types: numpy arrays
 train_t, train_tmask, train_d, train_dmask = prepare_data.prepare_data(train_t, train_d, vocab_size, max_len)
 valid_t, valid_tmask, valid_d, valid_dmask = prepare_data.prepare_data(valid_t, valid_d, vocab_size, max_len)
 test_t, test_tmask, test_d, test_dmask = prepare_data.prepare_data(test_t, test_d, vocab_size, max_len)
 
-print ('ntrain: %d, n_valid: %d, n_test: %d' % (len(train_y), len(valid_y), len(test_y)))
+print ('ntrain: %d, n_valid: %d, n_test: %d' % (len(train_y), len(valid_y), len(test_y)))      
 
 if train_y.dtype == 'float32':
     n_classes = -1
@@ -61,6 +66,7 @@ if 'fixed' in pretrain:
     train_t, train_d, valid_t, valid_d, test_t, test_d = prepare_data.to_features([train_t, train_d,
                                                                                    valid_t, valid_d,
                                                                                    test_t, test_d], emb_weight)
+                                                                               
     # n_classes, inp_len, emb_dim,
     # seq_model='lstm', nnet_model='highway', pool_mode='mean',
     # dropout_inp=False, dropout_hid=True):
@@ -76,15 +82,15 @@ else:
                          seq_model=seq_model, nnet_model=nnet_model, pool_mode=pool,
                          dropout_inp=dropout_inp, dropout_hid=dropout_hid, emb_weight=emb_weight)
 
-model.summary()
+model.summary()                                         #printing info about models
 json_string = model.to_json()
 fModel = open('models/' + saving + '.json', 'w')
-fModel.write(json_string)
+fModel.write(json_string)                               #saving built model to json file
 
 opt = RMSprop(lr=0.01)
-model.compile(optimizer=opt, loss=loss)
+model.compile(optimizer=opt, loss=loss)                 #Compile the model before training
 
-train_y = numpy.expand_dims(train_y, -1)
+train_y = numpy.expand_dims(train_y, -1)                #Training labels (story-points)
 
 fParams = 'bestModels/' + saving + '.hdf5'
 fResult = saving + '.txt'
@@ -93,11 +99,14 @@ if n_classes == -1: type = 'linear'
 elif n_classes == 1: type = 'binary'
 else: type = 'multi'
 
+# SaveResult Input: valid: a list of numpy arrays + valid_y label vector
+#                   test:  a list of numpy arrays + test_y label vector
 saveResult = SaveResult([[valid_t, valid_tmask, valid_d, valid_dmask], valid_y,
                          [test_t, test_tmask, test_d, test_dmask], test_y],
                         metric_type=type, fileResult=fResult, fileParams=fParams,train_label=train_y)
 
 callbacks = [saveResult, NanStopping()]
+#Train the model with model.fit
 his = model.fit([train_t, train_tmask, train_d, train_dmask], train_y,
                 validation_data=([valid_t, valid_tmask, valid_d, valid_dmask], numpy.expand_dims(valid_y, -1)),
                 nb_epoch=1000, batch_size=100, callbacks=callbacks)

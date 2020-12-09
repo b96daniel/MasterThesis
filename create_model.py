@@ -9,18 +9,13 @@ class SaveResult(Callback):
     Compute result after each epoch. Return a log of result
     Arguments:
         data_x, data_y, metrics
-        data:
-        valid: a list of numpy arrays + valid_y label vector
-        test:  a list of numpy arrays + test_y label vector
     '''
 
     def __init__(self, data=None, metric_type='binary', fileResult='', fileParams='', train_label='', minPatience=5,
-                 maxPatience=30, hiddenLayer=0):         
+                 maxPatience=30, hiddenLayer=0):
         # metric type can be: binary, multi
-                       
         super(SaveResult, self).__init__()
         
-        #x: input data: [title, title_mask, description, description_mask]
         self.valid_x = None
         self.valid_y = None
         self.test_x = None
@@ -43,7 +38,7 @@ class SaveResult(Callback):
 
         #creating header    
         #data: titles and descriptions with masks and labels of the valid and test set 
-        #x: input data: [title, title_mask, description, description_mask]
+        #x: input data: title, title_mask, description, description_mask
         if len(data) >= 2:
             self.valid_x, self.valid_y = data[0], data[1]
             f.write('epoch\tloss\tv_loss\t|\tv_' + fm[0] + '\tv_' + fm[1] + '\tv_' + fm[2] + '\tv_' + fm[3] + '\t|')
@@ -66,7 +61,7 @@ class SaveResult(Callback):
         self.fileParams = fileParams
         self.train_label = train_label
 
-    #Compute results at the of an epoch (x: input data (list of numpy arrays), y_true: labels)
+    #Compute results at the of an epoch (x: input data, y_true: labels)
     def _compute_result(self, x, y_true, ):
         #precision25: how many are under 0.25 mean relative error
         def pr25(y_true, y_pred):
@@ -158,7 +153,7 @@ class SaveResult(Callback):
     #Definition of on_epoch_end inherited method from Callback (parent of SaveResult) imported from keras.callbacks
     #Called at the of each epoch if a SaveResult object is passed to Model.fit callback argument
     def on_epoch_end(self, epoch, logs={}):
-        
+
         #calculating and saving validation results
         v_auc, v_f1, v_pre, v_rec = self._compute_result(self.valid_x, self.valid_y)
         f = open('log/' + self.fileResult, 'a')

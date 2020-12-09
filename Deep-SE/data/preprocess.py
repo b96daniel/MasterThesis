@@ -20,7 +20,7 @@ def tokenize(sentences):
 
     print 'Tokenizing..',
     text = "\n".join(sentences)
-    tokenizer = Popen(tokenizer_cmd, stdin=PIPE, stdout=PIPE)       #!!Error: windows nem talalja a fajt
+    tokenizer = Popen(tokenizer_cmd, stdin=PIPE, stdout=PIPE)       #!!Error: windows can't find the file
     tok_text, _ = tokenizer.communicate(text)
     toks = tok_text.split('\n')[:-1]
     print 'Done'
@@ -61,6 +61,11 @@ def build_dict(sentences):
 
     return worddict
 
+#Grab_data: representing title and descr fields with vectors (with diff. dimensions), ie lists of numbers,
+#where each number represents a word
+#Input: title (a string vector), description (a string vector)
+#       dictionary: word dict., holds word representations
+#Output: two list of numerical row vectors representing the two inputted title/descr field lists(string vectors)
 def grab_data(title, description, dictionary):
     title = tokenize(title)
     description = tokenize(description)
@@ -89,12 +94,13 @@ def main():
     valid_ids = ids[n_train:]
     train = numpy.concatenate([pre_title[train_ids], pre_descr[train_ids]])
     valid = numpy.concatenate([pre_title[valid_ids], pre_descr[valid_ids]])
-    dictionary = build_dict(train)
-    pre_train, pre_valid = grab_data(train, valid, dictionary)
-    f_pre = gzip.open(sys.argv[1] + '_pretrain.pkl.gz', 'wb')
+    dictionary = build_dict(train)                                              #building word dictionary, aka taking each word once
+    pre_train, pre_valid = grab_data(train, valid, dictionary)                  #building pretrain dataset with the word-dict
+    f_pre = gzip.open(sys.argv[1] + '_pretrain.pkl.gz', 'wb')                   #saving pretrain dataset
     pkl.dump((pre_train, pre_valid, pre_valid), f_pre, -1)
     f_pre.close()
 
+    #saving word-dictionary
     f = gzip.open(sys.argv[1] + '.dict.pkl.gz', 'wb')
     pkl.dump(dictionary, f, -1)
     f.close()

@@ -14,7 +14,7 @@ import load_raw_text
 from subprocess import Popen, PIPE
 
 # tokenizer.perl is from Moses: https://github.com/moses-smt/mosesdecoder/tree/master/scripts/tokenizer
-tokenizer_cmd = ['/usr/bin/perl', 'tokenizer.perl', '-l', 'en', '-q', '-']
+tokenizer_cmd = ['perl', 'tokenizer.perl', '-l', 'en', '-q', '-']
 
 def tokenize(sentences):
 

@@ -99,7 +99,7 @@ class SaveResult(Callback):
             y_pred_guess = numpy.ones(len(y_true)) + numpy.mean(self.train_label)
             mae_guess = metrics.mean_absolute_error(y_true, y_pred_guess)
             sa = (1 - (auc / mae_guess)) * 100                           #Standard Accuracy, probably doesn't make sense
-            mmre = numpy.mean(abs(y_true - y_pred) / y_true )            #Mean MRE, added by D.Balint
+            mmre = numpy.mean(abs(y_true - y_pred) / y_true )            #Mean MRE, added by D.Balint          
             f1 = mmre
             rec = 0                                                      # no use metric
             # self.ar = numpy.abs(numpy.subtract(y_true, y_pred))
@@ -147,6 +147,8 @@ class SaveResult(Callback):
         for i in mre:
             mre_f.write(str(i))
             mre_f.write('\n')
+        mre_f.write('MeanMRE:')
+        mre_f.write(str(numpy.mean(mre)))
         mre_f.close()
 
     def save_result_tuning_hdl(self, epoch, result, hdl):

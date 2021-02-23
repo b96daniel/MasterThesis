@@ -1,4 +1,5 @@
 #### Run: python sprinplanning.py project sprint_size
+#### python 2
 #####################################################
 import os
 import sys
@@ -33,7 +34,7 @@ print('Model loaded')
 #### Loading dataset ####
 f = gzip.open( 'Deep-SE/data/' + sys.argv[1] + '.pkl.gz', 'rb')
 train_t, train_d, train_y, valid_t, valid_d, valid_y, test_t, test_d, test_y = cPickle.load(f) 
-print train_y
+print (train_y)
 title = train_t + valid_t + test_t
 description = train_d + valid_d + test_d
 #modifying titles and desscriptions by limiting their vocab and length, and creating masks for them

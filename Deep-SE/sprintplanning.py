@@ -23,8 +23,8 @@ sprint_size = sys.argv[3]       # Estimated team velocity
 pretrain = 'fixed_lm'
 hid_dim = 10
 path = project + '_lstm_highway_dim' + str(hid_dim) + '_reginphid_pre' + pretrain + '_poolmean'
-model_path = 'Deep-SE/classification/models/' + path + '.json'
-param_path = 'Deep-SE/classification/bestModels/' + path + '.hdf5'
+model_path = 'classification/models/' + path + '.json'
+param_path = 'classification/bestModels/' + path + '.hdf5'
 fModel = open(model_path)                                               #load model architecture from json file in /models
 model = model_from_json(fModel.read(), custom_objects =  {'PoolingSeq': PoolingSeq})    
 model.summary()
@@ -32,7 +32,7 @@ model.load_weights(param_path)                                           #loadin
 print('Model loaded')
 
 #### Loading dataset ####
-f = gzip.open( 'Deep-SE/data/' + sys.argv[1] + '.pkl.gz', 'rb')
+f = gzip.open( 'data/' + sys.argv[1] + '.pkl.gz', 'rb')
 train_t, train_d, train_y, valid_t, valid_d, valid_y, test_t, test_d, test_y = cPickle.load(f) 
 print (train_y)
 title = train_t + valid_t + test_t
@@ -65,7 +65,7 @@ sp_pred = model.predict(x, batch_size=x[0].shape[0])
 print(sp_pred)
 
 # Construct product backlog containing estimated story-points
-df=pd.read_csv('Deep-SE/data/' + project + '.csv')
+df=pd.read_csv('data/' + project + '.csv')
 df['storypoint'] = sp_pred[:, 0]
 print('Dataframe with estimated story-points:')
 print(df)

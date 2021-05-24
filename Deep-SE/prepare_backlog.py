@@ -88,8 +88,8 @@ def to_features(list_seqs, emb_weight):
     return list_feats
 
 def load_weight(path):
-    model_path = 'Deep-SE/NCE/models/' + path + '.json'
-    param_path = 'Deep-SE/NCE/bestModels/' + path + '.hdf5'
+    model_path = 'NCE/models/' + path + '.json'
+    param_path = 'NCE/bestModels/' + path + '.hdf5'
 
     custom = {'NCEContext': NCEContext, 'NCE': NCE, 'NCE_seq': NCE_seq}
     fModel = open(model_path)
@@ -101,5 +101,5 @@ def load_weight(path):
             return weights[0]
 
 def load_w2v_weight(path):
-    f = open('Deep-SE/NCE/bestModels/' + path, 'rb')
+    f = open('NCE/bestModels/' + path, 'rb')
     return cPickle.load(f) 

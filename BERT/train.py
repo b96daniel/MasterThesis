@@ -1,4 +1,7 @@
-### python 3
+### run: python train.py project
+### Fine tunes BERT with the selected dataset (argv[1] = project)
+import os
+import sys
 import tensorflow as tf
 import torch
 import pandas as pd
@@ -13,15 +16,37 @@ import time
 import datetime
 import random
 
+########################### Local functions ####################################
+# Function to calculate the accuracy of our predictions vs labels
+def mre(preds, labels):
+    mre = abs((labels - preds) / labels)
+    #mre = np.divide(np.abs(np.subtract(labels, preds)), labels)
+    return mre                              
+
+def format_time(elapsed):
+    '''
+    Takes a time in seconds and returns a string hh:mm:ss
+    '''
+    # Round to the nearest second.
+    elapsed_rounded = int(round((elapsed)))
+    
+    # Format as hh:mm:ss
+    return str(datetime.timedelta(seconds=elapsed_rounded))              
+##################################################################################  
+####################### Loading dataset and pretrained model #####################
+project = sys.argv[1]
 tokenizer = BertTokenizer.from_pretrained('bert-base-uncased', do_lower_case=True)
-df = pd.read_csv("../dataset/moodle.csv")
+df = pd.read_csv("../dataset/" + project + ".csv")               
+df.fillna(" ", inplace = True)                          #replace NULL values with space
+titles = df.title.values
 descr = df.description.values
 labels = df.storypoint.values
+texts = titles + ' ' + descr                                
 
 input_ids = []
 
 # For every sentence...
-for sent in descr:
+for sent in texts:
     # `encode` will:
     #   (1) Tokenize the sentence.
     #   (2) Prepend the `[CLS]` token to the start.
@@ -42,13 +67,13 @@ for sent in descr:
     input_ids.append(encoded_sent)
 
 # Padding:
-MAX_LEN = 500
+MAX_LEN = 80
 print('\nPadding/truncating all sentences to %d values...' % MAX_LEN)
 print('\nPadding token: "{:}", ID: {:}'.format(tokenizer.pad_token, tokenizer.pad_token_id))
 # Pad our input tokens with value 0.
 # "post" indicates that we want to pad and truncate at the end of the sequence,
 # as opposed to the beginning.
-input_ids = pad_sequences(input_ids, maxlen=MAX_LEN, dtype="long", 
+input_ids = pad_sequences(input_ids, maxlen=MAX_LEN, dtype="int64", 
                           value=0, truncating="post", padding="post")
 print('\nDone.')
 
@@ -65,28 +90,30 @@ for sent in input_ids:
 
 # Use train_test_split to split our data into train and validation sets (90-10%)
 train_inputs, validation_inputs, train_labels, validation_labels = train_test_split(input_ids, labels, 
-                                                            random_state=2018, test_size=0.1)
+                                                            test_size=0.1, shuffle = False)     
 # Do the same for the masks.
 train_masks, validation_masks, _, _ = train_test_split(attention_masks, labels,
-                                             random_state=2018, test_size=0.1)
+                                             test_size=0.1, shuffle = False)
 
 # Convert all inputs and labels into torch tensors
 train_inputs = torch.tensor(train_inputs)
 validation_inputs = torch.tensor(validation_inputs)
 
-train_labels = torch.tensor(train_labels)
-validation_labels = torch.tensor(validation_labels)
+train_labels = torch.tensor(train_labels).to(torch.float)                   #labels need to be float for regression
+validation_labels = torch.tensor(validation_labels).to(torch.float)
+train_labels =  train_labels / 100                  
+validation_labels = validation_labels / 100
 
 train_masks = torch.tensor(train_masks)
-validation_masks = torch.tensor(validation_masks)                                            
+validation_masks = torch.tensor(validation_masks)                                      
 
 # The DataLoader needs to know our batch size for training
 # For fine-tuning BERT on a specific task, recommended batch size is 16 or 32.
-batch_size = 32
+batch_size = 16
 
 # Create the DataLoader for our training set.
 train_data = TensorDataset(train_inputs, train_masks, train_labels)
-train_sampler = RandomSampler(train_data)
+train_sampler = SequentialSampler(train_data)                               #instead RandomSampler
 train_dataloader = DataLoader(train_data, sampler=train_sampler, batch_size=batch_size)
 
 # Create the DataLoader for our validation set.
@@ -104,12 +131,13 @@ model = BertForSequenceClassification.from_pretrained(
     output_attentions = False, # Whether the model returns attentions weights.
     output_hidden_states = False, # Whether the model returns all hidden-states.
 )
+model.cuda()
 # Note: AdamW is a class from the huggingface library (as opposed to pytorch) 
 # Probably 'W' stands for 'Weight Decay fix"
 optimizer = AdamW(model.parameters(),  lr = 2e-5,  eps = 1e-8)
 
 # Number of training epochs (authors recommend between 2 and 4)
-epochs = 4
+epochs = 10
 # Total number of training steps is number of batches * number of epochs.
 total_steps = len(train_dataloader) * epochs
 # Create the learning rate scheduler.
@@ -121,7 +149,7 @@ scheduler = get_linear_schedule_with_warmup(optimizer,
 #####################################################################################################
 ####################################### Training Loop ###############################################
 
-device = torch.device("cpu")
+device = torch.device("cuda")
 # This training code is based on the `run_glue.py` script here:
 # https://github.com/huggingface/transformers/blob/5bfcd0485ece086ebcbed2d008813037968a9e58/examples/run_glue.py#L128
 
@@ -135,6 +163,8 @@ torch.cuda.manual_seed_all(seed_val)
 
 # Store the average loss after each epoch so we can plot them.
 loss_values = []
+MMREs = []
+minMMRE = 100
 
 print('Training...')
 for epoch_i in range(0, epochs):
@@ -173,11 +203,11 @@ for epoch_i in range(0, epochs):
         # `batch` contains three pytorch tensors:
         #   [0]: input ids 
         #   [1]: attention masks
-        #   [2]: labels 
+        #   [2]: labels         
         b_input_ids = batch[0].to(device)
         b_input_mask = batch[1].to(device)
         b_labels = batch[2].to(device)
-        
+
         # Always clear any previously calculated gradients before performing a
         # backward pass. PyTorch doesn't do this automatically because 
         # accumulating the gradients is "convenient while training RNNs". 
@@ -203,7 +233,7 @@ for epoch_i in range(0, epochs):
         # single value; the `.item()` function just returns the Python value 
         # from the tensor.
         total_loss += loss.item()
-
+        
         # Perform a backward pass to calculate the gradients.
         loss.backward()
 
@@ -217,30 +247,30 @@ for epoch_i in range(0, epochs):
         optimizer.step()
 
         # Update the learning rate.
-        scheduler.step()
-
-    # Calculate the average loss over the training data.
-    avg_train_loss = total_loss / len(train_dataloader)            
+        scheduler.step() 
+        ###################### End of batch ############################         
     
     # Store the loss value for plotting the learning curve.
+    avg_train_loss = total_loss / len(train_dataloader)
     loss_values.append(avg_train_loss)
 
-    print("\n  Average training loss: {0:.2f}".format(avg_train_loss))
+    print("\n  Average training loss: {0:.4f}".format(total_loss / len(train_dataloader) ))
     print("  Training epcoh took: {:}".format(format_time(time.time() - t0)))
         
     # ========================================
     #               Validation
     # ========================================
     print("\nRunning Validation...")
-    t0 = time.time()
+    #t0 = time.time()
 
     # Put the model in evaluation mode--the dropout layers behave differently
     # during evaluation.
     model.eval()
 
     # Tracking variables 
-    eval_loss, eval_accuracy = 0, 0
-    nb_eval_steps, nb_eval_examples = 0, 0
+    eval_mmre = 0
+    nb_eval_steps = 0
+    predictions , true_labels = [], []
 
     # Evaluate data for one epoch
     for batch in validation_dataloader:
@@ -269,41 +299,66 @@ for epoch_i in range(0, epochs):
         # Get the "logits" output by the model. The "logits" are the output
         # values prior to applying an activation function like the softmax.
         logits = outputs[0]
-
+        
         # Move logits and labels to CPU
         logits = logits.detach().cpu().numpy()
-        label_ids = b_labels.to('cpu').numpy()
-        
-        # Calculate the accuracy for this batch of test sentences.
-        tmp_eval_accuracy = flat_accuracy(logits, label_ids)
-        
-        # Accumulate the total accuracy.
-        eval_accuracy += tmp_eval_accuracy
+        b_label_ids = b_labels.to('cpu').numpy()
 
+        # Calculate MMRE for this batch of test sentences.
+        b_preds = [item[0] for item in logits]      
+        #MMRE:
+        print("MMRE:")
+        tmp = 0
+        for i, item in enumerate(b_preds):
+          tmp += mre(item,b_label_ids[i])        
+        print(tmp / len(b_label_ids))
+        eval_mmre += (tmp / len(b_label_ids))
+        
         # Track the number of batches
         nb_eval_steps += 1
+        # Store predictions and true labels
+        predictions.append(b_preds)
+        true_labels.append(b_label_ids)
+        ################# End of batch ######################
 
-    # Report the final accuracy for this validation run.
-    print("  Accuracy: {0:.2f}".format(eval_accuracy/nb_eval_steps))
-    print("  Validation took: {:}".format(format_time(time.time() - t0)))
+    # Report the final MMRE for this validation epoch.
+    MMRE = eval_mmre / nb_eval_steps
+    print(" MMRE: {0:.3f}".format(MMRE))
+    MMREs.append(MMRE)
 
+    # Save best validation log of predictions, labels 
+    if MMRE < minMMRE:
+      minMMRE = MMRE
+      flat_predictions = [item for sublist in predictions for item in sublist]
+      flat_true_labels = [item for sublist in true_labels for item in sublist]
+      val_dict = {"Predictions": flat_predictions, "True labels": flat_true_labels}
+      val_df = pd.DataFrame(val_dict)
+      val_df.to_csv("log/" + project + "_validation.csv")
+    ###################### End of epoch #######################
+
+result_dict = {"Test MMRE": MMREs, "Avg. Training Loss": loss_values}
+log_df = pd.DataFrame(result_dict)
+log_df.to_csv("log/" + project + "_log.csv")
 print("\nTraining complete!")
+################################### End of training loop ########################################
 #################################################################################################
-#################################################################################################
 
+######################################## Save model #############################################
+# Saving best-practices: if you use defaults names for the model, you can reload it using from_pretrained()
 
-# Function to calculate the accuracy of our predictions vs labels
-def flat_accuracy(preds, labels):
-    pred_flat = np.argmax(preds, axis=1).flatten()
-    labels_flat = labels.flatten()
-    return np.sum(pred_flat == labels_flat) / len(labels_flat)                              
+output_dir = './model_save/' + project + '/'
 
-def format_time(elapsed):
-    '''
-    Takes a time in seconds and returns a string hh:mm:ss
-    '''
-    # Round to the nearest second.
-    elapsed_rounded = int(round((elapsed)))
-    
-    # Format as hh:mm:ss
-    return str(datetime.timedelta(seconds=elapsed_rounded))              
+# Create output directory if needed
+if not os.path.exists(output_dir):
+    os.makedirs(output_dir)
+
+print("Saving model to %s" % output_dir)
+
+# Save a trained model, configuration and tokenizer using `save_pretrained()`.
+# They can then be reloaded using `from_pretrained()`
+model_to_save = model.module if hasattr(model, 'module') else model  # Take care of distributed/parallel training
+model_to_save.save_pretrained(output_dir)
+tokenizer.save_pretrained(output_dir)
+
+# Good practice: save your training arguments together with the trained model
+# torch.save(args, os.path.join(output_dir, 'training_args.bin'))
